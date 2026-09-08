@@ -1,36 +1,102 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AegisSOC — AI-Powered Cybersecurity Threat Detection & Incident Response Platform
 
-## Getting Started
+An industry-level, full-stack cybersecurity application built with **Next.js (App Router)**, **TypeScript**, **Tailwind CSS**, and an integrated **SQLite database** for full data persistence.
 
-First, run the development server:
+---
 
+## 🎯 What Does This Project Do?
+
+This system simulates a **Security Operations Center (SOC)** alongside a live user-facing web portal ("Honey-Site"):
+
+1. **Simulated Victim Portal ("Honey-Site"):**
+   * Acts as an e-commerce/user portal with interactive login, search, and catalog endpoints.
+   * Users can interact normally or simulate attacks using built-in 1-click attack vectors (SQL Injection, Cross-Site Scripting, Brute Force, Volumetric DoS, and Directory Traversal).
+   * User telemetry and conduct are captured in real-time.
+
+2. **AI Threat Detection & Scoring Engine:**
+   * Analyzes inbound requests, frequency bursts, and payloads.
+   * Classifies vulnerabilities (SQLi, XSS, Brute Force, DoS, Path Traversal, Clean Traffic).
+   * Assigns mathematical **Risk Scores (0–100)** and **Severity Ratings (Low, Medium, High, Critical)**.
+   * Generates **Explainable AI (XAI)** reasoning detailing *why* the model made that decision.
+
+3. **SOC Admin Dashboard:**
+   * Visualizes real-time metrics, threat breakdown pie charts, and severity spectrum bar charts.
+   * Interactive incident management: change status, view XAI reasoning, and block/unblock malicious IPs.
+
+4. **Persistent SQLite Database:**
+   * **All telemetry logs, threat scores, and firewall IP blocks are saved to a real local SQLite database (`data/cybersecurity.db`).**
+   * Everything persists across page refreshes and server restarts!
+
+---
+
+## 🚀 Quick Setup & Run Guide
+
+### 1. Prerequisites
+- **Node.js**: v18 or later (v20+ recommended)
+- **npm** (included with Node.js)
+
+### 2. Install Dependencies
+Open a terminal inside this project folder and run:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 3. Start Development Server
+```bash
+npm run dev
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 4. Open in Browser
+Visit:
+👉 **[http://localhost:3000](http://localhost:3000)**
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
+## 🧪 How to Test
 
-To learn more about Next.js, take a look at the following resources:
+1. In the top navigation bar, click **"Simulated Client App"**.
+2. Scroll to the **"Quick Attack Vector Simulators"** section:
+   - Click **SQL Injection Attack** (submits SQL bypass credentials).
+   - Click **XSS Script Attack** (submits malicious JavaScript tags).
+   - Click **Brute Force Auth** (sends 4 rapid failed logins).
+   - Click **Volumetric DoS Burst** (triggers 8 rapid requests in 5s).
+   - Click **Directory Traversal** (attempts accessing `/etc/passwd`).
+3. Switch over to the **"SOC Admin Console"** tab:
+   - Notice the telemetry table and charts update automatically.
+   - Click **"XAI Reason"** next to any event to inspect the AI's explanation and payload breakdown.
+   - Click **"Block IP"** to add an IP to the active firewall list.
+   - Refresh your browser tab — **notice all logs and blocked IPs stay saved because of SQLite!**
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 📂 Project Architecture
 
-## Deploy on Vercel
+```text
+cybersecurity-soc/
+├── data/
+│   └── cybersecurity.db        <-- Persistent SQLite Database
+├── src/
+│   ├── app/
+│   │   ├── api/
+│   │   │   ├── logs/route.ts   <-- SQLite Log Ingestion & Status API
+│   │   │   └── firewall/route.ts <-- SQLite IP Firewall Rules API
+│   │   ├── page.tsx            <-- Main View & Navigation State
+│   │   └── layout.tsx
+│   ├── components/
+│   │   ├── AdminDashboard.tsx  <-- Real-time SOC Panel & Analytics
+│   │   └── HoneySite.tsx       <-- Interactive Client & Attack Simulator
+│   └── lib/
+│       ├── db.ts               <-- SQLite Connection & Schema
+│       └── threatEngine.ts     <-- AI / Behavioral Anomaly Detection
+├── package.json
+└── README.md
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+---
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 🛡️ Key Technologies Used
+- **Next.js 16 (App Router)** & **React 19**
+- **TypeScript**
+- **SQLite3** (Local embedded relational database)
+- **Recharts** & **Lucide React** (Data visualization & icons)
+- **Tailwind CSS** (Dark-mode responsive design)
