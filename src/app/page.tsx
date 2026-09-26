@@ -1,10 +1,20 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { HoneySite } from '@/components/HoneySite';
 import { AdminDashboard } from '@/components/AdminDashboard';
 import { SecurityLog } from '@/lib/threatEngine';
-import { Shield, LayoutDashboard, Globe, AlertOctagon, Database, RefreshCw } from 'lucide-react';
+import { AIConfigModal } from '@/components/AIConfigModal';
+import {
+  Shield,
+  LayoutDashboard,
+  Globe,
+  AlertOctagon,
+  Database,
+  RefreshCw,
+  Sparkles,
+  Bot,
+} from 'lucide-react';
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<'honeysite' | 'admin'>('admin');
@@ -12,9 +22,29 @@ export default function Home() {
   const [blockedIps, setBlockedIps] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [isAIActive, setIsAIActive] = useState<boolean>(false);
+  const [activeModel, setActiveModel] = useState<string>('gemini-3.8-flash');
+  const [isAIConfigOpen, setIsAIConfigOpen] = useState<boolean>(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Fetch initial logs and blocked IPs from SQLite database API
-  const fetchData = async () => {
+  // Check AI engine status (Gemini API key presence & validity)
+  const fetchAIStatus = useCallback(async () => {
+    try {
+      const res = await fetch('/api/ai-status');
+      if (res.ok) {
+        const data = await res.json();
+        setIsAIActive(Boolean(data.enabled && data.hasKey));
+        if (data.model) {
+          setActiveModel(data.model);
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to retrieve AI status:', err);
+    }
+  }, []);
+
+  // Fetch logs and blocked IPs from SQLite database API
+  const fetchData = useCallback(async () => {
     setIsSyncing(true);
     try {
       const [logsRes, ipRes] = await Promise.all([
@@ -37,11 +67,19 @@ export default function Home() {
       setIsLoading(false);
       setIsSyncing(false);
     }
-  };
+  }, []);
 
+  // Initial fetch + auto-polling every 8 seconds
   useEffect(() => {
     fetchData();
-  }, []);
+    fetchAIStatus();
+    pollRef.current = setInterval(() => {
+      fetchData();
+    }, 8000);
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, [fetchData, fetchAIStatus]);
 
   const handleActivityDetected = async (
     sourceIp: string,
@@ -69,6 +107,15 @@ export default function Home() {
       }
     } catch (err) {
       console.error('Failed to persist security telemetry to database:', err);
+    }
+  };
+
+  // Sequential batch variant for multi-request attacks (brute force, DoS)
+  const handleBatchActivity = async (
+    events: Array<{ ip: string; endpoint: string; method: 'GET' | 'POST' | 'PUT' | 'DELETE'; payload: string }>
+  ) => {
+    for (const event of events) {
+      await handleActivityDetected(event.ip, event.endpoint, event.method, event.payload);
     }
   };
 
@@ -128,16 +175,27 @@ export default function Home() {
               <h1 className="text-base font-extrabold text-slate-100 tracking-tight flex items-center gap-2">
                 AegisSOC
                 <span className="text-xs px-2 py-0.5 rounded bg-cyan-950 text-cyan-400 border border-cyan-800 font-mono">
-                  v1.2 SQLite-Persistent
+                  v2.0 Gemini-AI
                 </span>
               </h1>
-              <p className="text-xs text-slate-400 flex items-center gap-2">
-                AI Threat Detection Platform
+              <div className="text-xs text-slate-400 flex items-center gap-2 mt-0.5">
+                <button
+                  onClick={() => setIsAIConfigOpen(true)}
+                  className={`inline-flex items-center gap-1 font-mono text-[11px] px-1.5 py-0.5 rounded border transition cursor-pointer ${
+                    isAIActive
+                      ? 'bg-emerald-950 text-emerald-300 border-emerald-800 hover:bg-emerald-900'
+                      : 'bg-amber-950 text-amber-300 border-amber-800 hover:bg-amber-900'
+                  }`}
+                  title="Click to manage Gemini API Key"
+                >
+                  <Sparkles className="w-3 h-3" />
+                  {isAIActive ? activeModel : 'Fallback Heuristics'}
+                </button>
                 <span className="text-slate-600">•</span>
                 <span className="inline-flex items-center gap-1 text-emerald-400 font-mono text-[11px]">
                   <Database className="w-3 h-3" /> SQLite Active
                 </span>
-              </p>
+              </div>
             </div>
           </div>
 
@@ -212,13 +270,31 @@ export default function Home() {
             blockedIps={blockedIps}
             onUpdateStatus={handleUpdateStatus}
             onToggleBlockIp={handleToggleBlockIp}
+            isAIActive={isAIActive}
+            activeModel={activeModel}
+            onRefreshAIStatus={fetchAIStatus}
           />
         ) : (
           <div className="max-w-4xl mx-auto">
-            <HoneySite onActivityDetected={handleActivityDetected} />
+            <HoneySite
+              onActivityDetected={handleActivityDetected}
+              onBatchActivity={handleBatchActivity}
+            />
           </div>
         )}
       </main>
+
+      {/* AI Engine Configuration Dialog */}
+      <AIConfigModal
+        isOpen={isAIConfigOpen}
+        onClose={() => setIsAIConfigOpen(false)}
+        isAIActive={isAIActive}
+        activeModel={activeModel}
+        onAIActivated={() => {
+          fetchAIStatus();
+          setIsAIConfigOpen(false);
+        }}
+      />
     </div>
   );
 }

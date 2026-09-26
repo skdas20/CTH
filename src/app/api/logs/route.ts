@@ -10,7 +10,20 @@ export async function GET() {
 
     const logs: SecurityLog[] = rawLogs.map((row) => ({
       ...row,
-      xaiReasoning: JSON.parse(row.xaiReasoning || '[]'),
+      xaiReasoning: (() => {
+        try {
+          return JSON.parse(row.xaiReasoning || '[]');
+        } catch {
+          return [row.xaiReasoning || ''];
+        }
+      })(),
+      cveReferences: (() => {
+        try {
+          return row.cveReferences ? JSON.parse(row.cveReferences) : [];
+        } catch {
+          return [];
+        }
+      })(),
     }));
 
     return NextResponse.json({ logs });
@@ -25,6 +38,13 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { sourceIp, targetEndpoint, requestMethod, payload } = body;
 
+    if (!sourceIp || !targetEndpoint || !requestMethod) {
+      return NextResponse.json(
+        { error: 'Missing required fields: sourceIp, targetEndpoint, requestMethod' },
+        { status: 400 }
+      );
+    }
+
     // Retrieve recent logs for behavioral / volumetric analysis
     const rawRecent = await dbAll<any>(
       'SELECT * FROM security_logs WHERE sourceIp = ? ORDER BY timestamp DESC LIMIT 20',
@@ -33,11 +53,22 @@ export async function POST(request: Request) {
 
     const recentLogs: SecurityLog[] = rawRecent.map((row) => ({
       ...row,
-      xaiReasoning: JSON.parse(row.xaiReasoning || '[]'),
+      xaiReasoning: (() => {
+        try { return JSON.parse(row.xaiReasoning || '[]'); } catch { return []; }
+      })(),
+      cveReferences: (() => {
+        try { return row.cveReferences ? JSON.parse(row.cveReferences) : []; } catch { return []; }
+      })(),
     }));
 
-    // Run AI Threat Analysis
-    const analysis = analyzeSecurityLog(sourceIp, targetEndpoint, requestMethod, payload || '', recentLogs);
+    // Run AI Threat Analysis (properly awaited)
+    const analysis = await analyzeSecurityLog(
+      sourceIp,
+      targetEndpoint,
+      requestMethod,
+      payload || '',
+      recentLogs
+    );
 
     const newLog: SecurityLog = {
       ...analysis,
@@ -46,12 +77,13 @@ export async function POST(request: Request) {
       status: 'Active',
     };
 
-    // Insert into SQLite database
+    // Insert all fields into SQLite database
     await dbRun(
       `INSERT INTO security_logs (
         id, timestamp, sourceIp, targetEndpoint, requestMethod, payload,
-        responseCode, threatType, severity, riskScore, xaiReasoning, status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        responseCode, threatType, severity, riskScore, xaiReasoning, status,
+        confidence, recommendedAction, cveReferences, analysisMode
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         newLog.id,
         newLog.timestamp,
@@ -65,6 +97,10 @@ export async function POST(request: Request) {
         newLog.riskScore,
         JSON.stringify(newLog.xaiReasoning),
         newLog.status,
+        newLog.confidence ?? null,
+        newLog.recommendedAction ?? null,
+        JSON.stringify(newLog.cveReferences ?? []),
+        newLog.analysisMode ?? 'fallback',
       ]
     );
 

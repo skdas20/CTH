@@ -1,31 +1,36 @@
 # AegisSOC — AI-Powered Cybersecurity Threat Detection & Incident Response Platform
 
-An industry-level, full-stack cybersecurity application built with **Next.js (App Router)**, **TypeScript**, **Tailwind CSS**, and an integrated **SQLite database** for full data persistence.
+An enterprise-grade, full-stack cybersecurity platform built with **Next.js (App Router)**, **TypeScript**, **Tailwind CSS**, **Google Gemini 3 Family (3.8 / 3.6 / 3.5 Flash)**, and an integrated **SQLite database** for full data persistence.
 
 ---
 
 ## 🎯 What Does This Project Do?
 
-This system simulates a **Security Operations Center (SOC)** alongside a live user-facing web portal ("Honey-Site"):
+This system simulates a modern **Security Operations Center (SOC)** alongside a live user-facing web portal ("Honey-Site"):
 
 1. **Simulated Victim Portal ("Honey-Site"):**
-   * Acts as an e-commerce/user portal with interactive login, search, and catalog endpoints.
-   * Users can interact normally or simulate attacks using built-in 1-click attack vectors (SQL Injection, Cross-Site Scripting, Brute Force, Volumetric DoS, and Directory Traversal).
-   * User telemetry and conduct are captured in real-time.
+   - E-commerce/user portal with interactive login, search, and catalog endpoints.
+   - Built-in 1-click attack vector simulations (SQL Injection, Cross-Site Scripting, Brute Force, Volumetric DoS, and Directory Traversal).
+   - Dynamic client IP randomization to simulate realistic attacker subnets.
 
-2. **AI Threat Detection & Scoring Engine:**
-   * Analyzes inbound requests, frequency bursts, and payloads.
-   * Classifies vulnerabilities (SQLi, XSS, Brute Force, DoS, Path Traversal, Clean Traffic).
-   * Assigns mathematical **Risk Scores (0–100)** and **Severity Ratings (Low, Medium, High, Critical)**.
-   * Generates **Explainable AI (XAI)** reasoning detailing *why* the model made that decision.
+2. **🧠 Genuine Gemini 3.8 / 3.6 / 3.5 Flash AI Threat Engine:**
+   - Evaluates incoming HTTP payloads with multimodal LLM intent reasoning and structured JSON output.
+   - Supports selecting between **Gemini 3.8 Flash** (Latest Frontier), **Gemini 3.6 Flash** (High Efficiency), and **Gemini 3.5 Flash** (Agentic Standard).
+   - Computes dynamic **Risk Scores (0–100)** and **Severity Ratings (Low, Medium, High, Critical)**.
+   - Generates unique, payload-specific **Explainable AI (XAI)** reasoning.
+   - Maps threats to **CWE**, **CVE**, and **OWASP Top 10** standards with actionable **Remediation Playbooks**.
+   - Includes automatic **graceful degradation** to rule heuristics when offline or if an API key is not yet configured.
 
-3. **SOC Admin Dashboard:**
-   * Visualizes real-time metrics, threat breakdown pie charts, and severity spectrum bar charts.
-   * Interactive incident management: change status, view XAI reasoning, and block/unblock malicious IPs.
+3. **🤖 Interactive AegisAI Security Analyst Chat:**
+   - Embedded Tier-3 SOC analyst assistant with direct real-time context of SQLite telemetry and active firewall rules.
+   - Ask complex security questions, correlate attack patterns across IPs, or generate defensive WAF rules and code patches.
 
-4. **Persistent SQLite Database:**
-   * **All telemetry logs, threat scores, and firewall IP blocks are saved to a real local SQLite database (`data/cybersecurity.db`).**
-   * Everything persists across page refreshes and server restarts!
+4. **🔍 Natural Language Threat Investigation:**
+   - Query logs in plain English (e.g., *"Show critical SQL injections"* or *"Find brute force attacks on /login"*).
+   - AI correlates logs, identifies affected endpoints, and provides an executive incident assessment.
+
+5. **Persistent SQLite Database:**
+   - Telemetry logs, threat scores, confidence metrics, and firewall IP blocks persist in `data/cybersecurity.db`.
 
 ---
 
@@ -36,67 +41,35 @@ This system simulates a **Security Operations Center (SOC)** alongside a live us
 - **npm** (included with Node.js)
 
 ### 2. Install Dependencies
-Open a terminal inside this project folder and run:
 ```bash
 npm install
 ```
 
-### 3. Start Development Server
+### 3. Configure Gemini AI (Optional but Recommended)
+Get a free API key from [Google AI Studio](https://aistudio.google.com/apikey) (free tier: 15 req/min, 1,500 req/day at $0 cost).
+
+Copy `.env.example` to `.env.local` and add your key:
+```env
+GEMINI_API_KEY=your-api-key-here
+GEMINI_MODEL=gemini-3.8-flash
+```
+*(Alternatively, you can click the AI status badge in the top navbar inside the dashboard and activate your key directly through the UI!)*
+
+### 4. Start Development Server
 ```bash
 npm run dev
 ```
 
-### 4. Open in Browser
+### 5. Open in Browser
 Visit:
 👉 **[http://localhost:3000](http://localhost:3000)**
 
 ---
 
-## 🧪 How to Test
+## 🧪 Testing the AI Features
 
-1. In the top navigation bar, click **"Simulated Client App"**.
-2. Scroll to the **"Quick Attack Vector Simulators"** section:
-   - Click **SQL Injection Attack** (submits SQL bypass credentials).
-   - Click **XSS Script Attack** (submits malicious JavaScript tags).
-   - Click **Brute Force Auth** (sends 4 rapid failed logins).
-   - Click **Volumetric DoS Burst** (triggers 8 rapid requests in 5s).
-   - Click **Directory Traversal** (attempts accessing `/etc/passwd`).
-3. Switch over to the **"SOC Admin Console"** tab:
-   - Notice the telemetry table and charts update automatically.
-   - Click **"XAI Reason"** next to any event to inspect the AI's explanation and payload breakdown.
-   - Click **"Block IP"** to add an IP to the active firewall list.
-   - Refresh your browser tab — **notice all logs and blocked IPs stay saved because of SQLite!**
-
----
-
-## 📂 Project Architecture
-
-```text
-cybersecurity-soc/
-├── data/
-│   └── cybersecurity.db        <-- Persistent SQLite Database
-├── src/
-│   ├── app/
-│   │   ├── api/
-│   │   │   ├── logs/route.ts   <-- SQLite Log Ingestion & Status API
-│   │   │   └── firewall/route.ts <-- SQLite IP Firewall Rules API
-│   │   ├── page.tsx            <-- Main View & Navigation State
-│   │   └── layout.tsx
-│   ├── components/
-│   │   ├── AdminDashboard.tsx  <-- Real-time SOC Panel & Analytics
-│   │   └── HoneySite.tsx       <-- Interactive Client & Attack Simulator
-│   └── lib/
-│       ├── db.ts               <-- SQLite Connection & Schema
-│       └── threatEngine.ts     <-- AI / Behavioral Anomaly Detection
-├── package.json
-└── README.md
-```
-
----
-
-## 🛡️ Key Technologies Used
-- **Next.js 16 (App Router)** & **React 19**
-- **TypeScript**
-- **SQLite3** (Local embedded relational database)
-- **Recharts** & **Lucide React** (Data visualization & icons)
-- **Tailwind CSS** (Dark-mode responsive design)
+1. **Trigger Attacks:** Switch to the **"Simulated Client App"** tab and click any attack simulator (e.g., SQL Injection, XSS, Brute Force).
+2. **Review Telemetry:** Switch back to **"SOC Admin Console"** to see real-time captured incidents, charts, and severity breakdowns.
+3. **Inspect Explainable AI (XAI):** Click **"XAI Reason"** on any incident to see the AI decision breakdown, confidence score, and remediation playbook.
+4. **Natural Language Investigation:** In the query box above the table, type *"Show critical SQL injections"* and click **Investigate**.
+5. **Chat with AegisAI:** Click **"Open AI Analyst Chat"** or use the quick query pills to analyze live telemetry.
